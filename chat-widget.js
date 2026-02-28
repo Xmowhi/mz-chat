@@ -95,7 +95,8 @@
 
         const e = document.getElementById("mz-chat-toggle"), t = document.getElementById("mz-chat-main"), n = document.getElementById("mz-chat-history"), a = document.getElementById("mz-chat-message-form"), s = document.getElementById("mz-chat-message"), c = document.getElementById("mz-typing-indicator"), d = document.getElementById("mz-auth-container"), i = document.getElementById("mz-chat-container"), o = document.getElementById("mz-phone-input"), r = document.getElementById("mz-phone-submit"), m = document.getElementById("mz-chat-badge"), l = document.getElementById("mz-chat-file"), attBtn = document.getElementById("mz-attach-btn"), micBtn = document.getElementById("mz-mic-btn"), audioPreview = document.getElementById("mz-audio-preview"), cancelAudioBtn = document.getElementById("mz-cancel-audio-btn"), sendAudioBtn = document.getElementById("mz-send-audio-btn"), loadMoreBtn = document.getElementById("mz-load-more-btn");
         
-        let p=localStorage.getItem("mz_chat_mobile_"+lk), chatLastTime=0, oldestMessageTimestamp=null, y=0, b=false, v, M=null, pollTimer=null, isLoadingMore=false, hasMoreOlderMessages=true, mr, aC=[], iR=false, mT, pendingAudio=null;
+        // باگ کُشنده (w) در اینجا با اضافه شدن w=false رفع شد
+        let p=localStorage.getItem("mz_chat_mobile_"+lk), chatLastTime=0, oldestMessageTimestamp=null, y=0, b=false, v, M=null, pollTimer=null, isLoadingMore=false, hasMoreOlderMessages=true, mr, aC=[], iR=false, mT, pendingAudio=null, w=false;
 
         function initA(){if(!M)M=new(window.AudioContext||window.webkitAudioContext)();if("suspended"===M.state)M.resume();}
         document.addEventListener("click",initA,{once:true}); document.addEventListener("touchstart",initA,{once:true});
@@ -161,13 +162,13 @@
             } else { mr.stop(); iR=false; micBtn.classList.remove("recording"); clearTimeout(mT); mr.stream.getTracks().forEach(tr=>tr.stop()); }
         });
 
-        cancelAudioBtn.addEventListener("click",()=>{pendingAudio=null; audioPreview.style.display="none"; s.placeholder="پیام...";});
+        cancelAudioBtn.addEventListener("click",()=>{pendingAudio=null; audioPreview.style.display="none"; s.placeholder="پیام خود را بنویسید...";});
 
         sendAudioBtn.addEventListener("click",()=>{
             if(!pendingAudio||!p)return;
             k("[AUDIO]"+pendingAudio,"user",null);
             fetch(`${MZ_SERVER_URL}?userId=${p}&sender=user&license=${lk}&originDomain=${originDomain}&_=${Date.now()}`,{method:"POST",body:"[AUDIO]"+pendingAudio,mode:"no-cors"}).catch(()=>{});
-            pendingAudio=null; audioPreview.style.display="none"; s.placeholder="پیام...";
+            pendingAudio=null; audioPreview.style.display="none"; s.placeholder="پیام خود را بنویسید...";
         });
 
         function E(){
@@ -221,18 +222,23 @@
                 }).catch(err=>{isLoadingMore=false; loadMoreBtn.disabled=false; loadMoreBtn.innerText="خطا!";});
         });
 
+        // تابع k آپدیت شد تا از dataset برای حذف دقیق‌تر پیام‌های موقت استفاده کنه
         function k(textMsg,senderType,timestamp){
             textMsg=String(textMsg||"");
             if(senderType==="user"&&timestamp!==null){
                 let localMsgs=n.querySelectorAll(".mz-chat-msg.mz-msg-user.local-msg");
                 for(let el of localMsgs){
-                    if(el.innerText===textMsg||(textMsg.startsWith("[IMG]")&&el.innerHTML.includes("<img"))||(textMsg.startsWith("[AUDIO]")&&el.innerHTML.includes("<audio"))){
+                    if(el.dataset.rawContent === textMsg){
                         el.remove(); break;
                     }
                 }
             }
             const div=document.createElement("div"); div.className=`mz-chat-msg ${senderType==="user"?"mz-msg-user":"mz-msg-admin"}`;
-            if(senderType==="user"&&timestamp===null) div.classList.add("local-msg");
+            
+            if(senderType==="user"&&timestamp===null) {
+                div.classList.add("local-msg");
+                div.dataset.rawContent = textMsg; // ذخیره دقیق محتوا برای تشخیص و حذف مطمئن
+            }
             
             if(textMsg.startsWith("[IMG]")){div.innerHTML=`<img src="${textMsg.replace("[IMG]","")}" style="max-width:100%;border-radius:8px;">`;}
             else if(textMsg.startsWith("[AUDIO]")){div.innerHTML=`<audio controls src="${textMsg.replace("[AUDIO]","")}" style="max-width:100%;height:35px;outline:none;" preload="auto"></audio>`;}
