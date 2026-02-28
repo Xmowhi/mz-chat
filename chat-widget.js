@@ -1,4 +1,4 @@
-(function() {
+<script>(function() {
     function initMzWidget() {
         if (document.getElementById('mz-chat-main-wrapper')) return;
 
@@ -196,4 +196,4 @@
 
     if (document.readyState === 'complete') initMzWidget();
     else window.addEventListener('load', initMzWidget);
-})();
+})();</script>
