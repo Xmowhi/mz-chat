@@ -1,10 +1,9 @@
-(function(){
+(function() {
     function initMzWidget() {
-        // جلوگیری از لود تکراری
         if(document.getElementById('mz-chat-main-wrapper')) return;
 
-        const scripts = document.getElementsByTagName('script');
         let lk = null;
+        const scripts = document.getElementsByTagName('script');
         for (let i = 0; i < scripts.length; i++) {
             if (scripts[i].getAttribute('data-license')) {
                 lk = scripts[i].getAttribute('data-license');
@@ -12,16 +11,14 @@
             }
         }
         
-        // اگر لایسنس پیدا نشد (برای تست دستی، لایسنس را اینجا جایگزین کنید)
-        if(!lk) { 
-            console.warn("MozheBazar: License Key Missing. Trying default...");
-            // lk = "YOUR_TEST_LICENSE_HERE"; // اگر می‌خواهید دستی تست کنید این خط را فعال کنید
-            if(!lk) return; 
-        }
+        if(!lk) { console.error("MozheBazar: License Key Missing"); return; }
 
         const originDomain = window.location.hostname.replace(/^www\./, '');
         const MZ_SERVER_URL = "https://script.google.com/macros/s/AKfycbxvfpKr_kQqjsiNhdDiuSehvn-mJBtrGuE37n6pzVciNzNX9Z4kzs3Kgw-DiW6mXjG1/exec";
-        const API_BASE = `${MZ_SERVER_URL}?license=${lk}&originDomain=${originDomain}`;
+        const API_BASE = MZ_SERVER_URL + "?license=" + lk + "&originDomain=" + originDomain;
+
+        const wrapper = document.createElement('div');
+        wrapper.id = 'mz-chat-main-wrapper';
 
         const st = document.createElement('style');
         st.innerHTML = `
@@ -60,12 +57,12 @@
         .mz-auth-input{border:1px solid #ddd;border-radius:10px;padding:12px;text-align:center;font-size:16px;margin-bottom:15px;direction:ltr;outline:none;width:100%;box-sizing:border-box}
         .mz-auth-btn{background:#185ABC;color:#fff;border:none;padding:12px;border-radius:10px;font-weight:700;cursor:pointer;width:100%;box-sizing:border-box}
         #mz-load-more-btn {background:#e0e0e0;color:#555;border:none;padding:8px 15px;border-radius:20px;cursor:pointer;font-family:inherit;font-size:12px;margin:0 auto 10px;display:none;width: fit-content;align-self: center;}
+        #mz-load-more-btn:disabled {opacity: 0.5; cursor: not-allowed;}
         `;
-        document.head.appendChild(st);
+        wrapper.appendChild(st);
 
-        const wrapper = document.createElement('div');
-        wrapper.id = 'mz-chat-main-wrapper';
-        wrapper.innerHTML = `
+        const ct = document.createElement('div');
+        ct.innerHTML = `
             <div class="mz-chat-bubble" id="mz-chat-toggle"><svg style="width:30px;height:30px;fill:white" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg><div class="mz-chat-badge" id="mz-chat-badge">0</div></div>
             <div class="mz-chat-window" id="mz-chat-main">
                 <div class="mz-chat-header">پشتیبانی آنلاین</div>
@@ -97,11 +94,12 @@
                 </div>
             </div>
         `;
+        wrapper.appendChild(ct);
         document.body.appendChild(wrapper);
 
         const e = document.getElementById("mz-chat-toggle"), t = document.getElementById("mz-chat-main"), n = document.getElementById("mz-chat-history"), a = document.getElementById("mz-chat-message-form"), s = document.getElementById("mz-chat-message"), c = document.getElementById("mz-typing-indicator"), d = document.getElementById("mz-auth-container"), i = document.getElementById("mz-chat-container"), o = document.getElementById("mz-phone-input"), r = document.getElementById("mz-phone-submit"), m = document.getElementById("mz-chat-badge"), l = document.getElementById("mz-chat-file"), attBtn = document.getElementById("mz-attach-btn"), micBtn = document.getElementById("mz-mic-btn"), audioPreview = document.getElementById("mz-audio-preview"), cancelAudioBtn = document.getElementById("mz-cancel-audio-btn"), sendAudioBtn = document.getElementById("mz-send-audio-btn"), loadMoreBtn = document.getElementById("mz-load-more-btn");
         
-        let p=localStorage.getItem("mz_chat_mobile_"+lk), chatLastTime=0, oldestMessageTimestamp=null, y=0, b=false, v, M=null, pollTimer=null, isLoadingMore=false, hasMoreOlderMessages=true, mr, aC=[], iR=false, mT, pendingAudio=null, w=false;
+        let p = localStorage.getItem("mz_chat_mobile_" + lk), chatLastTime = 0, oldestMessageTimestamp = null, y = 0, b = false, v, M = null, pollTimer = null, isLoadingMore = false, hasMoreOlderMessages = true, mr, aC = [], iR = false, mT, pendingAudio = null;
 
         function initA(){if(!M)M=new(window.AudioContext||window.webkitAudioContext)();if("suspended"===M.state)M.resume();}
         document.addEventListener("click",initA,{once:true}); document.addEventListener("touchstart",initA,{once:true});
@@ -111,7 +109,13 @@
         e.addEventListener("click",()=>{
             t.classList.toggle("active");
             if(t.classList.contains("active")){
-                m.style.display="none"; y=0; f(); E(); 
+                m.style.display="none"; y=0;
+                fetch(`${API_BASE}&action=adminGetChat&userId=test&lastTimestamp=0&limit=1`).then(res=>res.json()).then(res=>{
+                    if(res.error === "Unauthorized Domain") {
+                        document.getElementById("mz-auth-msg").innerHTML = "<span style='color:red;'>⚠️ این سایت لایسنس معتبر ندارد.</span>";
+                        o.style.display = "none"; r.style.display = "none";
+                    } else { f(); E(); }
+                }).catch(err=>{ f(); E(); });
             }
         });
 
@@ -125,14 +129,16 @@
 
         s.addEventListener("input",()=>{b=true; clearTimeout(v); v=setTimeout(()=>b=false,2000);});
 
+        // 🚀 ارسال امن با متد POST به صورت مستقل
         a.addEventListener("submit",function(event){
             event.preventDefault(); const txt=s.value.trim(); if(!txt)return;
             k(txt,"user",null); s.value=""; b=false;
-            fetch(`${MZ_SERVER_URL}?userId=${p}&sender=user&license=${lk}&originDomain=${originDomain}&_=${Date.now()}`,{method:"POST",body:txt,mode:"no-cors"}).catch(()=>{});
+            fetch(`${MZ_SERVER_URL}?userId=${p}&sender=user&license=${lk}&originDomain=${originDomain}&_=${new Date().getTime()}`,{method:"POST",body:txt,mode:"no-cors"}).catch(()=>{});
         });
 
         attBtn.addEventListener("click",()=>l.click());
 
+        // 🚀 ارسال تصویر با متد POST
         l.addEventListener("change",function(ev){
             const file=ev.target.files[0]; if(!file)return;
             const reader=new FileReader();
@@ -143,8 +149,8 @@
                     if(width>600){height*=600/width;width=600;}
                     canvas.width=width; canvas.height=height; const ctx=canvas.getContext("2d"); ctx.drawImage(img,0,0,width,height);
                     const b64=canvas.toDataURL("image/jpeg",0.6);
-                    k("[IMG]"+b64,"user",null);
-                    fetch(`${MZ_SERVER_URL}?userId=${p}&sender=user&license=${lk}&originDomain=${originDomain}&_=${Date.now()}`,{method:"POST",body:"[IMG]"+b64,mode:"no-cors"}).catch(()=>{});
+                    k("[IMG]" + b64, "user", null);
+                    fetch(`${MZ_SERVER_URL}?userId=${p}&sender=user&license=${lk}&originDomain=${originDomain}&_=${new Date().getTime()}`,{method:"POST",body:"[IMG]"+b64,mode:"no-cors"}).catch(()=>{});
                 };
             };
             reader.readAsDataURL(file);
@@ -167,13 +173,14 @@
             } else { mr.stop(); iR=false; micBtn.classList.remove("recording"); clearTimeout(mT); mr.stream.getTracks().forEach(tr=>tr.stop()); }
         });
 
-        cancelAudioBtn.addEventListener("click",()=>{pendingAudio=null; audioPreview.style.display="none"; s.placeholder="پیام خود را بنویسید...";});
+        cancelAudioBtn.addEventListener("click",()=>{pendingAudio=null; audioPreview.style.display="none"; s.placeholder="پیام...";});
 
+        // 🚀 ارسال صدا با متد POST
         sendAudioBtn.addEventListener("click",()=>{
             if(!pendingAudio||!p)return;
-            k("[AUDIO]"+pendingAudio,"user",null);
-            fetch(`${MZ_SERVER_URL}?userId=${p}&sender=user&license=${lk}&originDomain=${originDomain}&_=${Date.now()}`,{method:"POST",body:"[AUDIO]"+pendingAudio,mode:"no-cors"}).catch(()=>{});
-            pendingAudio=null; audioPreview.style.display="none"; s.placeholder="پیام خود را بنویسید...";
+            k("[AUDIO]" + pendingAudio, "user", null);
+            fetch(`${MZ_SERVER_URL}?userId=${p}&sender=user&license=${lk}&originDomain=${originDomain}&_=${new Date().getTime()}`,{method:"POST",body:"[AUDIO]"+pendingAudio,mode:"no-cors"}).catch(()=>{});
+            pendingAudio=null; audioPreview.style.display="none"; s.placeholder="پیام...";
         });
 
         function E(){
@@ -224,7 +231,7 @@
                     }
                     if(!res.data||res.data.length<5){hasMoreOlderMessages=false; loadMoreBtn.style.display="none";}
                     isLoadingMore=false; loadMoreBtn.disabled=false; loadMoreBtn.innerText="پیام‌های قدیمی‌تر";
-                }).catch(err=>{isLoadingMore=false; loadMoreBtn.disabled=false; loadMoreBtn.innerText="خطا!";});
+                }).catch(err=>{isLoadingMore=false; loadMoreBtn.disabled=false; loadMoreBtn.innerText="خطا! دوباره تلاش کنید";});
         });
 
         function k(textMsg,senderType,timestamp){
@@ -238,13 +245,16 @@
                 }
             }
             const div=document.createElement("div"); div.className=`mz-chat-msg ${senderType==="user"?"mz-msg-user":"mz-msg-admin"}`;
+            
             if(senderType==="user"&&timestamp===null) {
                 div.classList.add("local-msg");
                 div.dataset.rawContent = textMsg;
             }
+            
             if(textMsg.startsWith("[IMG]")){div.innerHTML=`<img src="${textMsg.replace("[IMG]","")}" style="max-width:100%;border-radius:8px;">`;}
             else if(textMsg.startsWith("[AUDIO]")){div.innerHTML=`<audio controls src="${textMsg.replace("[AUDIO]","")}" style="max-width:100%;height:35px;outline:none;" preload="auto"></audio>`;}
             else{div.innerText=textMsg;}
+            
             c.parentNode.insertBefore(div,c); n.scrollTop=n.scrollHeight;
         }
 
@@ -252,12 +262,6 @@
         if(p){f(); startPolling(); E();}
     }
 
-    // تغییر مهم: کد بلافاصله بعد از لود شدن DOM اجرا می‌شود
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        initMzWidget();
-    } else {
-        document.addEventListener('DOMContentLoaded', initMzWidget);
-    }
-    
+    // انتصاب تابع به Window برای اجرای ایمن از بیرون
     window.mzInitWidget = initMzWidget;
 })();
